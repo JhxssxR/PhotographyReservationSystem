@@ -27,7 +27,7 @@ if (!empty($_SESSION['user_id'])) {
   $hide_auth = true;
   $hide_home = false;
   include __DIR__ . '/includes/header.php'; ?>
-
+<!-- class -->
   <main class="center">
     <div class="card">
       <div class="card-avatar"> 
@@ -99,7 +99,7 @@ if (!empty($_SESSION['user_id'])) {
           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M5 12h14" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M13 6l6 6-6 6" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
       </form>
-
+<!-- Alreaady have an account? -->
       <p class="muted">Already have an account? <a href="login.php">Sign in</a></p>
     </div>
   </main>
