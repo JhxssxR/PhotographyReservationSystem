@@ -62,7 +62,7 @@ CREATE TABLE `reservations` (
   `user_id` int(11) NOT NULL,
   `service_id` int(11) NOT NULL,
   `scheduled_date` datetime NOT NULL,
-  `status` enum('pending','confirmed','cancelled') DEFAULT 'pending',
+  `status` enum('pending','approved','confirmed','cancelled') DEFAULT 'pending',
   `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
