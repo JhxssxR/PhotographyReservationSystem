@@ -18,7 +18,12 @@ if ($userId) {
     // Fetch active bookings (exclude cancelled)
     $stmt = $pdo->prepare("SELECT r.reservation_id, r.scheduled_date, r.status, s.name AS service_name, s.price,
       (SELECT COUNT(*) FROM payments p WHERE p.reservation_id = r.reservation_id AND p.status = 'paid') AS paid_count,
-      (SELECT COUNT(*) FROM payments p WHERE p.reservation_id = r.reservation_id AND p.status = 'pending') AS pending_payment_count
+      (SELECT COUNT(*) FROM payments p WHERE p.reservation_id = r.reservation_id AND p.status = 'pending') AS pending_payment_count,
+      (SELECT p.receipt_image FROM payments p WHERE p.reservation_id = r.reservation_id ORDER BY p.payment_id DESC LIMIT 1) AS receipt_image,
+      (SELECT p.method FROM payments p WHERE p.reservation_id = r.reservation_id ORDER BY p.payment_id DESC LIMIT 1) AS payment_method,
+      (SELECT p.reference_number FROM payments p WHERE p.reservation_id = r.reservation_id ORDER BY p.payment_id DESC LIMIT 1) AS reference_number,
+      (SELECT p.status FROM payments p WHERE p.reservation_id = r.reservation_id ORDER BY p.payment_id DESC LIMIT 1) AS payment_status,
+      (SELECT p.paid_at FROM payments p WHERE p.reservation_id = r.reservation_id ORDER BY p.payment_id DESC LIMIT 1) AS paid_at
       FROM reservations r
       LEFT JOIN services s ON s.service_id = r.service_id
       WHERE r.user_id = :uid AND r.status != 'cancelled'
@@ -45,6 +50,11 @@ if ($userId) {
         'paid' => $isPaid,
         'pending_payment' => $hasPendingPayment,
         'price' => $row['price'] ?? 0,
+        'receipt_image' => $row['receipt_image'] ?? null,
+        'payment_method' => $row['payment_method'] ?? null,
+        'reference_number' => $row['reference_number'] ?? null,
+        'payment_status' => $row['payment_status'] ?? null,
+        'paid_at' => $row['paid_at'] ?? null,
       ];
     }
 
@@ -503,6 +513,157 @@ $activeTab = $_GET['tab'] ?? 'bookings';
     .status-approved { background: var(--info-bg); color: #2563eb; }
     .status-confirmed { background: var(--success-bg); color: #16a34a; }
     .status-completed { background: var(--success-bg); color: #16a34a; }
+
+    /* View Receipt Button */
+    .btn-view-receipt {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      margin-left: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #7b4f36;
+      background: rgba(201, 165, 122, 0.15);
+      border: 1px solid rgba(201, 165, 122, 0.3);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-view-receipt:hover {
+      background: rgba(201, 165, 122, 0.25);
+      border-color: #c9a57a;
+    }
+
+    /* Receipt Modal */
+    .receipt-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+    .receipt-modal-overlay.active { display: flex; }
+    .receipt-modal {
+      background: #fff;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 500px;
+      max-height: 90vh;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      animation: modalSlideIn 0.3s ease;
+    }
+    @keyframes modalSlideIn {
+      from { opacity: 0; transform: scale(0.95) translateY(20px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .receipt-modal-header {
+      padding: 16px 20px;
+      background: linear-gradient(135deg, #f7efe6 0%, #fff 100%);
+      border-bottom: 1px solid #e5e5e5;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .receipt-modal-header h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+      color: #7b4f36;
+    }
+    .receipt-modal-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: none;
+      background: #f4f4f5;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #71717a;
+      transition: all 0.2s;
+    }
+    .receipt-modal-close:hover {
+      background: #e4e4e7;
+      color: #3f3f46;
+    }
+    .receipt-modal-body {
+      padding: 20px;
+      max-height: calc(90vh - 120px);
+      overflow-y: auto;
+    }
+    .receipt-details {
+      background: #faf9f7;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    .receipt-detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #e8e4df;
+    }
+    .receipt-detail-row:last-child {
+      border-bottom: none;
+    }
+    .receipt-label {
+      font-size: 13px;
+      color: #6b5e4a;
+    }
+    .receipt-value {
+      font-size: 14px;
+      font-weight: 600;
+      color: #3d2b1f;
+    }
+    .receipt-amount {
+      font-size: 18px;
+      color: #7b4f36;
+    }
+    .receipt-status-paid {
+      background: #dcfce7;
+      color: #16a34a;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+    }
+    .receipt-status-pending {
+      background: #fef3c7;
+      color: #b45309;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+    }
+    .receipt-image-section {
+      text-align: center;
+    }
+    .receipt-image-label {
+      font-size: 13px;
+      color: #6b5e4a;
+      margin-bottom: 12px;
+      font-weight: 500;
+    }
+    .receipt-modal-body img {
+      max-width: 100%;
+      max-height: 50vh;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .receipt-modal-body img:hover {
+      transform: scale(1.02);
+    }
 
     /* Buttons */
     .btn {
@@ -1051,6 +1212,20 @@ $activeTab = $_GET['tab'] ?? 'bookings';
                   <?php endif; ?>
                   <?= $statusText ?>
                 </span>
+                <?php if (!empty($b['receipt_image']) || !empty($b['payment_method'])): ?>
+                <button type="button" class="btn-view-receipt" onclick="openReceiptModal(<?= htmlspecialchars(json_encode([
+                  'service' => $b['service'],
+                  'price' => $b['price'],
+                  'method' => $b['payment_method'],
+                  'reference' => $b['reference_number'],
+                  'status' => $b['payment_status'],
+                  'paid_at' => $b['paid_at'],
+                  'receipt' => $b['receipt_image']
+                ])) ?>)">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                  View Receipt
+                </button>
+                <?php endif; ?>
               </div>
               <div class="booking-meta">
                 <span>
@@ -1251,6 +1426,50 @@ $activeTab = $_GET['tab'] ?? 'bookings';
     <script>setTimeout(()=>{const t=document.getElementById('toast');if(t){t.classList.add('hide');setTimeout(()=>t.remove(),300)}},3000);</script>
   <?php endif; ?>
 
+  <!-- Receipt View Modal -->
+  <div class="receipt-modal-overlay" id="receiptModal">
+    <div class="receipt-modal">
+      <div class="receipt-modal-header">
+        <h3>Payment Receipt</h3>
+        <button class="receipt-modal-close" onclick="closeReceiptModal()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="receipt-modal-body">
+        <div class="receipt-details">
+          <div class="receipt-detail-row">
+            <span class="receipt-label">Service</span>
+            <span class="receipt-value" id="receiptServiceName"></span>
+          </div>
+          <div class="receipt-detail-row">
+            <span class="receipt-label">Amount</span>
+            <span class="receipt-value receipt-amount" id="receiptAmount"></span>
+          </div>
+          <div class="receipt-detail-row">
+            <span class="receipt-label">Payment Method</span>
+            <span class="receipt-value" id="receiptMethod"></span>
+          </div>
+          <div class="receipt-detail-row" id="receiptRefRow">
+            <span class="receipt-label">Reference Number</span>
+            <span class="receipt-value" id="receiptReference"></span>
+          </div>
+          <div class="receipt-detail-row">
+            <span class="receipt-label">Status</span>
+            <span class="receipt-value" id="receiptStatus"></span>
+          </div>
+          <div class="receipt-detail-row">
+            <span class="receipt-label">Date Submitted</span>
+            <span class="receipt-value" id="receiptDate"></span>
+          </div>
+        </div>
+        <div class="receipt-image-section" id="receiptImageSection">
+          <p class="receipt-image-label">Uploaded Receipt</p>
+          <img id="receiptImage" src="" alt="Payment Receipt">
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Reschedule Modal -->
   <div class="modal-overlay" id="rescheduleModal">
     <div class="modal">
@@ -1336,6 +1555,81 @@ $activeTab = $_GET['tab'] ?? 'bookings';
   </div>
 
   <script>
+    // Receipt Modal Functions
+    function openReceiptModal(data) {
+      // Set service name
+      document.getElementById('receiptServiceName').textContent = data.service || 'N/A';
+      
+      // Set amount
+      document.getElementById('receiptAmount').textContent = '₱' + Number(data.price).toLocaleString();
+      
+      // Set payment method
+      const methodNames = {
+        'gcash': 'GCash',
+        'bank': 'Bank Transfer',
+        'cash': 'Cash'
+      };
+      document.getElementById('receiptMethod').textContent = methodNames[data.method] || data.method || 'N/A';
+      
+      // Set reference number
+      const refRow = document.getElementById('receiptRefRow');
+      if (data.reference) {
+        document.getElementById('receiptReference').textContent = data.reference;
+        refRow.style.display = 'flex';
+      } else {
+        refRow.style.display = 'none';
+      }
+      
+      // Set status with badge styling
+      const statusEl = document.getElementById('receiptStatus');
+      if (data.status === 'paid') {
+        statusEl.innerHTML = '<span class="receipt-status-paid">✓ Verified</span>';
+      } else if (data.status === 'pending') {
+        statusEl.innerHTML = '<span class="receipt-status-pending">⏳ Pending Verification</span>';
+      } else {
+        statusEl.textContent = data.status || 'N/A';
+      }
+      
+      // Set date
+      if (data.paid_at) {
+        const date = new Date(data.paid_at);
+        document.getElementById('receiptDate').textContent = date.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      } else {
+        document.getElementById('receiptDate').textContent = 'N/A';
+      }
+      
+      // Set receipt image
+      const imgSection = document.getElementById('receiptImageSection');
+      const img = document.getElementById('receiptImage');
+      if (data.receipt) {
+        img.src = data.receipt;
+        imgSection.style.display = 'block';
+        // Open image in new tab on click
+        img.onclick = function() {
+          window.open(data.receipt, '_blank');
+        };
+      } else {
+        imgSection.style.display = 'none';
+      }
+      
+      document.getElementById('receiptModal').classList.add('active');
+    }
+    
+    function closeReceiptModal() {
+      document.getElementById('receiptModal').classList.remove('active');
+    }
+    
+    // Close receipt modal on overlay click
+    document.getElementById('receiptModal').addEventListener('click', function(e) {
+      if (e.target === this) closeReceiptModal();
+    });
+
     function openRescheduleModal(reservationId, currentDate, currentTime) {
       document.getElementById('reschedule_reservation_id').value = reservationId;
       document.getElementById('reschedule_date').value = currentDate;
